@@ -1079,3 +1079,79 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(getStudents, 100)
 })
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<script>
+async function updateLessonLink(userId, lessonLink) {
+  try {
+    const result = await api.updateLessonLink(userId, lessonLink);
+    
+    if (result.success) {
+      return result.data;
+    } else {
+      throw new Error(result.error || 'Неизвестная ошибка');
+    }
+  } catch (error) {
+    console.error('Ошибка при обновлении ссылки на урок:', error);
+    throw error;
+  }
+}
+
+function base64url(source) {
+    let encodedSource = CryptoJS.enc.Base64.stringify(source);
+    encodedSource = encodedSource.replace(/=+$/, '');
+    encodedSource = encodedSource.replace(/\+/g, '-');
+    encodedSource = encodedSource.replace(/\//g, '_');
+    return encodedSource;
+}
+
+function createToken(appId, appSecret, roomName, userName, isModerator) {
+    const header = { alg: "HS256", typ: "JWT" };
+    const encodedHeader = base64url(CryptoJS.enc.Utf8.parse(JSON.stringify(header)));
+
+    const userContext = { name: userName };
+    if (isModerator) {
+        userContext.moderator = "true";
+    }
+
+    const payload = {
+        context: { user: userContext },
+        aud: appId,
+        iss: appId,
+        sub: "meet.ulc.by",
+        room: roomName,
+        exp: Math.floor(Date.now() / 1000) + 7200
+    };
+    const encodedPayload = base64url(CryptoJS.enc.Utf8.parse(JSON.stringify(payload)));
+
+    const signature = CryptoJS.HmacSHA256(encodedHeader + "." + encodedPayload, appSecret);
+    const encodedSignature = base64url(signature);
+
+    return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
+}
+
+async function generateLinks(userData, student) {
+    const appId = "ulc-meet-app";
+    const appSecret = "ZjRkYmU5NjY2N2U2YjM1NTM0YjM5OWExMGU0NjZiNWE=";
+    // const roomName = `Занияте с ${userData.name} ${student.disciplineLevel} - ${Math.floor(Math.random() * 100000)}`;
+    const roomName = `Room-${Math.floor(Math.random() * 100000)}-${student.disciplineLevel}`;
+    const resultContainer = document.getElementById('resultLinks');
+
+    const moderatorToken = createToken(appId, appSecret, roomName, student.teacherName, true);
+    const userToken = createToken(appId, appSecret, roomName, userData.name, false);
+
+    const moderatorUrl = `https://meet.ulc.by/${roomName}?jwt=${moderatorToken}`;
+    const userUrl = `https://meet.ulc.by/${roomName}?jwt=${userToken}`;
+
+
+    try {
+        // Сохраняем ссылку в Supabase
+        await updateLessonLink(userData.id, userUrl);
+        window.open(moderatorUrl, '_blank');
+        return moderatorUrl;
+    } catch (error) {
+        console.error('Ошибка при генерации ссылки:', error);
+        alert('Не удалось создать ссылку на урок. Пожалуйста, попробуйте еще раз.');
+        return null;
+    }
+}
+</script>
