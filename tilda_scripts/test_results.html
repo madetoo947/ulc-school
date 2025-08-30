@@ -1,3 +1,135 @@
+<style>
+        body {
+            font-family: 'Wix Madefor Display', Arial, sans-serif;
+            font-size: 18px;
+            background-color: #f5f5f5;
+            color: #222;
+        }
+        h1, h2 {
+          font-family: 'DelaGothicOne', Arial, sans-serif;
+          font-weight: 400;
+        }
+        h1 {
+          font-size: 36px;
+        }
+        h2 {
+          font-size: 24px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .container .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .back-btn {
+            background: #3c4af5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .student-info {
+            margin-bottom: 20px;
+        }
+        .test-item {
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3c4af5;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            background: #eee;
+            color: #222;
+            transition: 0.4s;
+        }
+        
+        .test-item strong {
+           min-width: 25%;
+        }
+        
+        .test-item.active, .test-item:hover {
+            background: #3c4af5;
+            color: #fff;
+        }
+        div#studentDetails {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .test-details {
+            display: block;
+            background: #f0f0f0;
+            border-radius: 5px;
+            height: 0;
+            overflow: hidden;
+            padding: 0;
+            margin: 0;
+        }
+        .test-details.visible {
+            margin-top: 15px;
+            padding: 15px;
+            height: unset;
+        }
+        .task-review {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e8f5e9;
+            border-left: 3px solid #4CAF50;
+        }
+        .task-review.incorrect {
+            background: #ffebee;
+            border-left-color: #F44336;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+        }
+        .error {
+            color: #f02e2e;
+            text-align: center;
+            padding: 20px;
+        }
+        #allrecords a.test-link  {
+            color: #ffffff;
+            background-color: #f34040;
+            border-style: none !important;
+            border-radius: 30px;
+            box-shadow: none !important;
+            font-family: Wix Madefor Display;
+            font-weight: 400;
+            padding: 10px 40px;
+            display: inline-block;
+        }
+        @media screen and (max-width: 768px) {
+            h1 {
+          font-size: 24px;
+        }
+        h2 {
+          font-size: 18px;
+        }
+        body {
+            font-size: 14px;
+        }
+        }
+    </style>
 <div class="container">
         <div class="header">
             <button class="back-btn" onclick="window.history.back()">← Назад</button>
@@ -13,3 +145,335 @@
             <div class="loading">Загрузка результатов тестов...</div>
         </div>
     </div>
+<script>
+function hideLoad() {
+  const loader = document.querySelector('.cs-loader').closest('.t-rec')
+  loader.style.display = 'none'
+  document.body.style.overflow = 'auto'
+  document.body.style.touchAction = 'auto'
+}
+function showLoad() {
+  const loader = document.querySelector('.cs-loader').closest('.t-rec')
+  loader.style.display = 'block'
+  document.body.style.overflow = 'hidden'
+  document.body.style.touchAction = 'none'
+}
+// Функции для работы с API
+const api = {
+  async getUserByPhone(phone) {
+    try {
+      const response = await fetch(
+        'https://sb.ulc.by/functions/v1/get-user-by-phone',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone }),
+        }
+      )
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching user:', error)
+      return null
+    }
+  },
+
+  async getTestResults(userId, level = 'beginner') {
+    try {
+      const response = await fetch(
+        'https://sb.ulc.by/functions/v1/get-test-results',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, level }),
+        }
+      )
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching test results:', error)
+      return []
+    }
+  },
+}
+
+// Основная функция инициализации
+async function initTestResultsPage() {
+  const urlParams = new URLSearchParams(window.location.search)
+  const phone = urlParams.get('tel')
+  const studentName = urlParams.get('name')
+  if (!phone) {
+    showError('Номер телефона не указан')
+    return
+  }
+
+  try {
+    // Получаем данные студента
+    const userResponse = await api.getUserByPhone(phone)
+    if (!userResponse?.success) {
+      showError('Студент не найден')
+      return
+    }
+
+    const userData = userResponse.data
+    document.getElementById('studentName').textContent =
+      decodeURIComponent(studentName)
+    document.getElementById('studentDetails').innerHTML = `
+                    <p><strong>Телефон:</strong> ${formatPhone(phone)}</p>
+                    <p><strong>Email:</strong> ${
+                      userData.email || 'Не указан'
+                    }</p>
+                    <p><strong>Пройдено уроков:</strong> ${
+                      userData.lesson_number - 1 || 0
+                    }</p>
+                `
+
+    // Получаем результаты тестов
+    const testResults = await api.getTestResults(userData.id)
+    displayTestResults(testResults, userData.name)
+  } catch (error) {
+    console.error('Error:', error)
+    showError('Ошибка загрузки данных')
+  } finally {
+    hideLoad()
+  }
+}
+
+function formatPhone(phone) {
+  if (!phone || phone.length < 11) return 'Не указано'
+  return `+${phone.substring(0, 3)} (${phone.substring(
+    3,
+    5
+  )}) ${phone.substring(5, 8)}-${phone.substring(8, 10)}-${phone.substring(10)}`
+}
+
+function displayTestResults(testResults, studentName) {
+  const container = document.getElementById('testResultsContainer')
+
+  if (!testResults || testResults.length === 0) {
+    container.innerHTML =
+      '<div class="error">Результаты тестов не найдены</div>'
+    return
+  }
+
+  // Сортируем тесты в нужном порядке
+  const sortedTests = [...testResults].sort((a, b) => {
+    return compareTestNames(a.test_id, b.test_id)
+  })
+
+  let html = `
+                <h2>Всего тестов: ${sortedTests.length}</h2>
+                <div class="test-list">
+            `
+
+  sortedTests.forEach((test, index) => {
+    const testDate = new Date(test.completed_at).toLocaleDateString('ru-RU')
+    const passedText = test.is_passed ? '✅' : '❌'
+
+    html += `
+                    <div class="test-item" onclick="toggleTestDetails(${index})" id="testItem${index}">
+                        <strong>${formatTestName(test.test_id)}</strong>
+                        <span>${test.score}%</span>
+                        <span>${testDate}</span>
+                        <span>${passedText}</span>
+                    </div>
+                    <div class="test-details" id="testDetails${index}">
+                        ${renderTestDetails(test, studentName)}
+                    </div>
+                `
+  })
+
+  html += '</div>'
+  container.innerHTML = html
+}
+
+// Функция для сравнения названий тестов
+function compareTestNames(a, b) {
+  // Очищаем названия от префиксов
+  const cleanA = formatTestName(a).toLowerCase()
+  const cleanB = formatTestName(b).toLowerCase()
+
+  // Извлекаем номер урока и тип теста
+  const regex = /^(\d+[a-z]*)-?(test\d+|homework)/i
+  const matchA = cleanA.match(regex)
+  const matchB = cleanB.match(regex)
+
+  // Если не удалось распарсить, сортируем по алфавиту
+  if (!matchA || !matchB) {
+    return cleanA.localeCompare(cleanB)
+  }
+
+  const lessonA = matchA[1] // 1a, 1b, 2a и т.д.
+  const lessonB = matchB[1]
+
+  const testTypeA = matchA[2] // test1, test2, homework
+  const testTypeB = matchB[2]
+
+  // Сначала сравниваем уроки
+  if (lessonA !== lessonB) {
+    return compareLessons(lessonA, lessonB)
+  }
+
+  // Если урок одинаковый, сравниваем тип теста
+  return compareTestTypes(testTypeA, testTypeB)
+}
+
+// Функция для сравнения уроков (1a, 1b, 2a, 2b и т.д.)
+function compareLessons(a, b) {
+  // Извлекаем цифровую и буквенную части
+  const numA = parseInt(a.match(/\d+/)[0])
+  const numB = parseInt(b.match(/\d+/)[0])
+
+  if (numA !== numB) {
+    return numA - numB
+  }
+
+  // Если цифры одинаковые, сравниваем буквы
+  const letterA = a.match(/[a-z]+/)?.[0] || ''
+  const letterB = b.match(/[a-z]+/)?.[0] || ''
+
+  return letterA.localeCompare(letterB)
+}
+
+// Функция для сравнения типов тестов
+function compareTestTypes(a, b) {
+  const isHomeworkA = a.toLowerCase().includes('homework')
+  const isHomeworkB = b.toLowerCase().includes('homework')
+
+  // Homework всегда идет после всех тестов
+  if (isHomeworkA && !isHomeworkB) return 1
+  if (!isHomeworkA && isHomeworkB) return -1
+  if (isHomeworkA && isHomeworkB) return a.localeCompare(b)
+
+  // Оба являются тестами - извлекаем номера
+  const numA = extractTestNumber(a)
+  const numB = extractTestNumber(b)
+
+  return numA - numB
+}
+
+// Функция для извлечения номера теста (работает с test1, test2, ..., test10 и т.д.)
+function extractTestNumber(testType) {
+  const match = testType.match(/test(\d+)/i)
+  return match ? parseInt(match[1]) : 99
+}
+
+function formatTestName(testId) {
+  if (!testId) return 'Без названия'
+  // Убираем префиксы вида "7_" и "uc-"
+  return testId.replace(/^\d+_/, '').replace(/^uc-/, '')
+}
+
+function renderTestDetails(test, studentName) {
+  if (!test.test_data) return '<p>Детальные данные недоступны</p>'
+
+  // Получаем URL теста из метаданных
+  const testUrl = test.test_data._meta?.pageUrl || '#'
+  const testUrlHtml =
+    testUrl !== '#'
+      ? `<a href="${testUrl}" target="_blank" class="test-link">Открыть тест</a>`
+      : ''
+
+  let detailsHtml = `
+                <div class="header"><h3>Детали теста: ${formatTestName(
+                  test.test_id
+                )}</h3>${testUrlHtml}</div>
+                <h4>Разбор ответов:</h4>
+            `
+
+  // Обработка домашнего задания (структура с массивом tasks)
+  if (test.test_data.tasks && Array.isArray(test.test_data.tasks)) {
+    test.test_data.tasks.forEach((task, taskIndex) => {
+      detailsHtml += createTaskReviewHtml(task, taskIndex + 1)
+    })
+  }
+  // Обработка обычных тестов (структура с объектом вопросов)
+  else if (typeof test.test_data === 'object') {
+    Object.entries(test.test_data).forEach(
+      ([questionId, questionData], index) => {
+        if (
+          questionId !== 'level' &&
+          questionId !== 'stats' &&
+          questionId !== 'lesson' &&
+          questionId !== '_meta' // Исключаем метаданные из вопросов
+        ) {
+          detailsHtml += createTaskReviewHtml(questionData, index + 1)
+        }
+      }
+    )
+  }
+
+  return detailsHtml
+}
+function createTaskReviewHtml(taskData, questionNumber) {
+  const isCorrect =
+    taskData.is_correct !== undefined
+      ? taskData.is_correct
+      : taskData.isCorrect !== undefined
+      ? taskData.isCorrect
+      : true
+
+  let imageHtml = ''
+  if (taskData.imageUrl) {
+    imageHtml = `<div style="margin: 10px 0;">
+                    <img src="${taskData.imageUrl}" style="max-width: 200px; max-height: 150px; border: 1px solid #ddd; border-radius: 4px;" alt="Изображение к вопросу">
+                </div>`
+  }
+
+  let userAnswerText = ''
+  let correctAnswerText = ''
+
+  // Обработка разных форматов ответов для домашнего задания
+  if (taskData.user_answer !== undefined) {
+    userAnswerText = taskData.user_answer
+  } else if (taskData.userAnswers && Array.isArray(taskData.userAnswers)) {
+    userAnswerText = taskData.userAnswers.join(', ')
+  } else if (taskData.userAnswer) {
+    userAnswerText = taskData.userAnswer
+  }
+
+  // Обработка разных форматов правильных ответов для домашнего задания
+  if (taskData.correct_answer !== undefined) {
+    correctAnswerText = taskData.correct_answer
+  } else if (
+    taskData.correctAnswers &&
+    Array.isArray(taskData.correctAnswers)
+  ) {
+    correctAnswerText = taskData.correctAnswers.join(', ')
+  } else if (taskData.correctAnswer) {
+    correctAnswerText = taskData.correctAnswer
+  }
+
+  const questionText = taskData.description || taskData.questionText || ''
+
+  return `
+                <div class="task-review ${isCorrect ? '' : 'incorrect'}">
+                    <p><strong>Вопрос ${questionNumber}:</strong> ${questionText}</p>
+                    ${imageHtml}
+                    <p>Ваш ответ: <span style="color: ${
+                      isCorrect ? '#4CAF50' : '#F44336'
+                    }; font-weight: bold;">
+                        ${userAnswerText || '—'}
+                    </span></p>
+                    <p>Правильный ответ: <span style="color: #4CAF50; font-weight: bold;">
+                        ${correctAnswerText || '—'}
+                    </span></p>
+                </div>
+            `
+}
+
+function toggleTestDetails(index) {
+  const item = document.getElementById(`testItem${index}`)
+  const details = document.getElementById(`testDetails${index}`)
+  item.classList.toggle('active')
+  details.classList.toggle('visible')
+}
+
+function showError(message) {
+  document.getElementById('testResultsContainer').innerHTML = `
+                <div class="error">${message}</div>
+            `
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', initTestResultsPage)
+
+</script>
