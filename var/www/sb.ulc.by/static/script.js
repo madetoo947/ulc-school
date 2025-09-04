@@ -10,7 +10,6 @@ const pauseIcon = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" x
 
 const LESSON_STRUCTURE = {
   beginner: [
-    'questionnaire',
     '1A',
     '1B',
     '2A',
@@ -548,14 +547,27 @@ function saveToLocalStorageAsFallback(testId, tildaUser, testBlock) {
     console.error('Failed to save to localStorage:', localStorageError)
   }
 }
-// ========== Функции работы с пользователем ==========
 function getTildaUserData() {
+  if (
+    window.tilda_ma &&
+    window.tilda_ma.profile &&
+    window.tilda_ma.profile.login
+  ) {
+    return {
+      key: 'tilda_ma_profile',
+      data: {
+        login: window.tilda_ma.profile.login,
+      },
+    }
+  }
+  // Fallback на старый метод, если tilda_ma недоступен
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     if (key && key.startsWith('tilda_members_profile')) {
       try {
         const userData = JSON.parse(localStorage.getItem(key))
         if (userData && userData.login) {
+          console.warn('Using localStorage as a fallback for user data.')
           return { key, data: userData }
         }
       } catch (e) {
@@ -565,6 +577,7 @@ function getTildaUserData() {
   }
   return null
 }
+
 async function initUser() {
   try {
     const tildaUser = getTildaUserData()
@@ -656,7 +669,7 @@ function updateLessonButtons() {
     const lessonIndex = lessonOrder.findIndex(
       (item) => item.toLowerCase() === lessonId.toLowerCase()
     )
-
+    console.log(lessonIndex, lessonId)
     if (lessonIndex !== -1) {
       const tnAtom = button.querySelector('.tn-atom')
       if (tnAtom) {
