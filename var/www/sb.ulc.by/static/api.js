@@ -57,7 +57,9 @@ const api = {
   updateLessonLink: (userId, lessonLink) =>
     request('update-lesson-link', 'POST', { userId, lessonLink }),
 
-  // Audio operations
+  getQuestionnaireStatus: (userId) =>
+    request('get-questionnaire-status', 'POST', { userId }),
+
   textToSpeech: (text) =>
     request('text-to-speech', 'POST', {
       text,
